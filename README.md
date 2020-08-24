@@ -8,6 +8,7 @@ orchid is written in Rust and uses the Raft consensus algorithm to manage a high
 
 ## Contributing
 🎈 Thanks for your help improving the project! We are so happy to have you! 
+- [telegram group](https://t.me/orchid_develop)
 
 ## License
 
