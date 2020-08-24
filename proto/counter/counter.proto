@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package counter;
+
+message Snapshot {
+   int64 value = 1;
+};
+
+message FetchAddRequest {
+   int64 value = 1;
+};
+
+message CounterResponse {
+   bool success = 1;
+   int64 value = 2;
+   string redirect = 3;
+};
+
+message GetRequest {
+};
+
+service CounterService {
+  rpc fetch_add(FetchAddRequest) returns (CounterResponse);
+  rpc get(GetRequest) returns (CounterResponse);
+};

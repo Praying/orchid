@@ -1,9 +1,58 @@
 [package]
 name = "orchid"
 version = "0.1.0"
+license = "Apache-2.0"
 authors = ["Praying <snowfallvilla@163.com>"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[workspace]
+members = ["proto"]
 
 [dependencies]
+slog = "2.5.2"
+slog-envlogger = { version = "2.2.0", optional = true }
+slog-stdlog = { version = "4", optional = true }
+slog-term = { version = "2.6.0", optional = true }
+
+tonic = { version = "0.3.1"}
+prost = "0.6"
+tokio = { version = "0.2", features = ["rt-threaded", "time", "stream", "fs", "macros", "uds"] }
+tokio-test = "0.2.1"
+futures = { version = "0.3", default-features = false, features = ["alloc"] }
+async-stream = "0.2"
+tower = "0.3"
+# Required for routeguide
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+rand = "0.7"
+# Tracing
+tracing = "0.1.16"
+tracing-subscriber = { version = "0.2", features = ["tracing-log"] }
+tracing-attributes = "0.1"
+tracing-futures = "0.2"
+# Required for wellknown types
+prost-types = "0.6"
+
+# Hyper example
+hyper = "0.13"
+warp = { version = "0.2", default-features = false }
+http = "0.2"
+http-body = "0.3"
+pin-project = "0.4.17"
+# Health example
+tonic-health = "0.2.0"
+
+orchid-proto={path="proto"}
+
+[lib]
+name="orchid"
+path="src/lib.rs"
+
+[[example]]
+name = "counter-server"
+path = "examples/counter/server/counter_server.rs"
+
+[[example]]
+name = "counter-client"
+path = "examples/counter/client/counter_client.rs"
