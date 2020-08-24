@@ -16,7 +16,7 @@ jobs:
       - name: Install rustfmt
         run: rustup component add rustfmt
       - name: Show dirs
-        run: apt install tree -y && tree -L 4
+        run: cargo tree
       - name: Run build
         run: cargo build --verbose
       - name: Run tests
