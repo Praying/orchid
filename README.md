@@ -1,6 +1,9 @@
 
 ![orchid Logo](logos/orchid_1500x500.jpg)
 
+
+![Rust](https://github.com/Praying/orchid/workflows/Rust/badge.svg?branch=master)
+
 A rust implementation of [Raft](https://raft.github.io/)
 
 ## Overview
