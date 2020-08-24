@@ -1,6 +1,26 @@
-name: Test Rust project
+name: Rust project
 on: [push]
 jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        rust: [nightly]
+
+    steps:
+      - uses: hecrj/setup-rust-action@v1
+        with:
+          rust-version: ${{ matrix.rust }}
+      - uses: actions/checkout@master
+      - name: Install rustfmt
+        run: rustup component add rustfmt
+      - name: Build proto
+        run: cd proto && cargo build && cd ..
+      - name: Run build
+        run: cargo build --verbose
+
+
   test:
     runs-on: ${{ matrix.os }}
     strategy:
@@ -15,9 +35,7 @@ jobs:
       - uses: actions/checkout@master
       - name: Install rustfmt
         run: rustup component add rustfmt
-      - name: Show dirs
-        run: cargo tree
-      - name: Run build
-        run: cargo build --verbose
+      - name: Build proto
+        run: cd proto && cargo build && cd ..
       - name: Run tests
         run: cargo test --verbose
