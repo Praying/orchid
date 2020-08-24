@@ -1,6 +1,5 @@
-# orchid
 
-![orchid Logo](logos/orchid.png)
+![orchid Logo](logos/orchid_1500x500.jpg)
 
 orchid is a distributed reliable key-value store for distributed system
 
