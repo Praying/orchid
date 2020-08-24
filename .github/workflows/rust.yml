@@ -15,8 +15,6 @@ jobs:
       - uses: actions/checkout@master
       - name: Install rustfmt
         run: rustup component add rustfmt
-      - name: Build proto
-        run: cd proto && cargo build && cd ..
       - name: Run build
         run: cargo build --verbose
 
@@ -25,7 +23,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest, macOS-latest]
         rust: [nightly]
 
     steps:
@@ -35,7 +33,5 @@ jobs:
       - uses: actions/checkout@master
       - name: Install rustfmt
         run: rustup component add rustfmt
-      - name: Build proto
-        run: cd proto && cargo build && cd ..
       - name: Run tests
         run: cargo test --verbose
