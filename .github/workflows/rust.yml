@@ -1,4 +1,4 @@
-name: Rust project
+name: build&test
 on: [push]
 jobs:
   build:
