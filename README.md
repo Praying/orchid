@@ -2,7 +2,8 @@
 ![orchid Logo](logos/orchid_1500x500.jpg)
 
 
-![build&test](https://github.com/Praying/orchid/workflows/build&test/badge.svg)
+![build](https://github.com/Praying/orchid/workflows/build/badge.svg?branch=master)
+![test](https://github.com/Praying/orchid/workflows/test/badge.svg?branch=master)
 
 A rust implementation of [Raft](https://raft.github.io/)
 
