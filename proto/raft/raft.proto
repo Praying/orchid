@@ -184,7 +184,7 @@ message VoteRequest{
 
 }
 message VoteResponse{
-
+  int32 num = 1;
 }
 service RaftPB{
   rpc vote(VoteRequest) returns (VoteResponse){};

@@ -29,7 +29,6 @@ tracing-futures = "0.2"
 # Required for wellknown types
 prost-types = "0.6"
 
-
 [lib]
 name="orchid_proto"
 path="src/lib.rs"
