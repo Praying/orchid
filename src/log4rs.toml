@@ -1,0 +1,53 @@
+# Scan this file for changes every 30 seconds
+#refresh_rate="30 seconds"
+
+#[appenders]
+# An appender named "stdout" that writes to stdout
+#stdout={kind="console", encoder={pattern="{d(%+)(local)} [{t}] {h({l})} {M}:{m}{n}"}}
+# An appender named "requests" that writes to a file with a custom pattern encoder
+#requests={kind="file",  path="log/requests.log", encoder={pattern="{d(%+)(local)} [{t}] {h({l})} {M}:{m}{n}"}}
+
+# Set the default logging level to "info" and attach the "stdout"、"requests appender to the root
+#[root]
+#level="info"
+#appenders=["stdout","requests"]
+
+#[loggers]
+# Raise the maximum log level for events sent to the "app::backend::db" logger to "info"
+#"app::backend:db"={level="info"}
+# Route log events sent to the "app::requests" logger to the "requests" appender,
+# and *not* the normal appenders installed at the root
+#"app::requests"={level="info",appenders=["stdout"],additive=false}
+
+# Scan this file for changes every 30 seconds
+refresh_rate = "30 seconds"
+
+# An appender named "stdout" that writes to stdout
+[appenders.stdout]
+kind = "console"
+encoder = { pattern = "{d(%Y-%m-%d %H:%M:%S %Z)} [{h({l})}] - {m}{n}" }
+
+# An appender named "rolling" that writes to a rolling file
+# with a custom pattern encoder
+[appenders.rolling]
+kind = "rolling_file"
+path = "log/app.log"
+
+[appenders.rolling.policy.roller]
+kind = "fixed_window"
+pattern = "log/app.log.{}"
+base = 1
+count = 10
+
+[appenders.rolling.policy.trigger]
+kind = "size"
+limit = "1 mb"
+
+[appenders.rolling.encoder]
+pattern = "{d(%Y-%m-%d %H:%M:%S %Z)} [{l}] - {m}{n}"
+
+# Set the default logging level to "info"
+# and attach the "stdout" appender to the root
+[root]
+level = "debug"
+appenders = ["stdout", "rolling"]
