@@ -4,7 +4,7 @@ use log4rs::config::ConfigBuilder;
 use log4rs::Error;
 
 pub fn setup_logging() -> Result<(), Error> {
-    match log4rs::init_file("src/log4rs.toml", Default::default()) {
+    match log4rs::init_file("src/log/log4rs.toml", Default::default()) {
         Ok(_) => Ok(()),
         Err(e) => {
             eprintln!("log4rs init failed!,{}", e);

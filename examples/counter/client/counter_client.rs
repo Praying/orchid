@@ -4,12 +4,14 @@ use orchid_proto::proto::raft_pb::{
 };
 use std::mem::MaybeUninit;
 
-use tonic::{transport::Endpoint, transport::Server, Request, Response, Status};
 use orchid::node::raft_node::RaftService;
+use tonic::{transport::Endpoint, transport::Server, Request, Response, Status};
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>>{
-    let channel = Endpoint::from_static("http://[::1]:50056").connect().await?;
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let channel = Endpoint::from_static("http://[::1]:50056")
+        .connect()
+        .await?;
     let mut raft_client = RaftPbClient::new(channel.clone());
     let request = tonic::Request::new(VoteRequest {});
     let response = raft_client.vote(request).await?;

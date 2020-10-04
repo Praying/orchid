@@ -25,7 +25,7 @@ refresh_rate = "30 seconds"
 # An appender named "stdout" that writes to stdout
 [appenders.stdout]
 kind = "console"
-encoder = { pattern = "{d(%Y-%m-%d %H:%M:%S %Z)} [{h({l})}] - {m}{n}" }
+encoder = { pattern = "{d(%Y-%m-%d %H:%M:%S.%s %Z)} [{h({l})}] - {m}{n}" }
 
 # An appender named "rolling" that writes to a rolling file
 # with a custom pattern encoder
