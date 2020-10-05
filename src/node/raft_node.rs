@@ -10,11 +10,13 @@ use std::collections::HashMap;
 use tonic::{transport::Endpoint, transport::Server, Request, Response, Status};
 
 use crate::log::logger;
-use log::info;
+use log::{info,warn, debug};
 
 use time::prelude::*;
 
 use std::sync::Once;
+
+use std::sync::mpsc::channel;
 
 static START: Once = Once::new();
 
@@ -57,9 +59,9 @@ pub struct Raft {
     state: RaftState,
     ///id to self
     id: NodeID,
-
-    heartbeat_interval: Box<tokio::time::Interval>,
-    election_interval: Box<tokio::time::Interval>,
+    msg_sender: sync::Sender<MessageType>,
+    //heartbeat_interval: Box<tokio::time::Interval>,
+    //election_interval: Box<tokio::time::Interval>,
 }
 
 impl Raft {
@@ -78,12 +80,13 @@ impl Raft {
             term: 0,
             state: RaftState::StateFollower,
             id: option.id,
-            heartbeat_interval: Box::new(tokio::time::interval(
-                tokio::time::Duration::from_millis(100),
-            )),
-            election_interval: Box::new(tokio::time::interval(tokio::time::Duration::from_millis(
-                100,
-            ))),
+            // heartbeat_interval: Box::new(tokio::time::interval(
+            //     tokio::time::Duration::from_millis(100),
+            // )),
+            // election_interval: Box::new(tokio::time::interval(tokio::time::Duration::from_millis(
+            //     100,
+            // ))),
+            msg_sender: (),
         }
     }
 
@@ -132,9 +135,9 @@ impl Raft {
         let mut r = StdRng::seed_from_u64(time::Time::now().nanosecond() as u64);
         self.election_random_timeout =
             self.election_timeout + r.gen_range(0, self.election_timeout);
-        self.election_interval = Box::new(tokio::time::interval(
-            tokio::time::Duration::from_millis(self.election_random_timeout),
-        ));
+        // self.election_interval = Box::new(tokio::time::interval(
+        //     tokio::time::Duration::from_millis(self.election_random_timeout),
+        // ));
         info!(
             "{} reset election_timeout to {}",
             self.basic_info(),
@@ -155,6 +158,30 @@ impl Raft {
 
     fn set_state(&mut self, state: RaftState) {
         self.state = state;
+    }
+
+    fn step_follower(&mut self){
+        if self.state !=RaftState::StateFollower {
+            return;
+        }
+        warn!("{} is performing step_follower", self.basic_info());
+        self.election_elapsed +=1;
+        if self.past_election_timeout(){
+            self.election_elapsed = 0;
+            self.become_candidate();
+            self.msg_sender.send(MessageType::MSG_Vote);
+        }
+    }
+    fn step_candidate(&self){
+        if self.state !=RaftState::StateCandidate {
+            return;
+        }
+
+    }
+    fn step_leader(&self){
+        if self.state !=RaftState::StateLeader {
+            return;
+        }
     }
 }
 
@@ -252,6 +279,12 @@ async fn test_tokio_timer() {
     }
 }
 
+pub enum MessageType{
+    MSG_Vote,
+    MSG_HeartBeat,
+}
+
+
 #[tokio::test]
 async fn test_raft_election_timer() {
     let raft_option = RaftOptions::new();
@@ -259,15 +292,21 @@ async fn test_raft_election_timer() {
     raft.reset_election_timeout();
     raft.reset_heartbeat_timeout();
     raft.set_state(RaftState::StateFollower);
+    let (sender, receiver) = channel::<MessageType>();
+    raft.msg_sender = sender;
+    tokio::spawn(async move{
+        let mut interval = tokio::time::interval(tokio::time::Duration::from_millis(500));
+        loop{
+            interval.tick().await;
+            match raft.state{
+                RaftState::StateFollower=>raft.step_follower(),
+                RaftState::StateCandidate=>raft.step_candidate(),
+                RaftState::StateLeader=>raft.step_leader(),
+            }
+        }
+    });
 
-    // tokio::spawn(async{
-    //     loop{
-    //         let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(2));
-    //         interval.tick().await;
-    //         if raft.past_election_timeout(){
-    //             raft.become_candidate();
-    //         }
-    //
-    //     }
-    // }).await;
+    loop{
+
+    }
 }
