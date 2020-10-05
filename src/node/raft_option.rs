@@ -6,7 +6,7 @@ pub struct RaftOptions {
     pub tick: u64,
 
     /// raft node id which points to self
-    pub id:u64,
+    pub id: u64,
 }
 
 impl RaftOptions {
@@ -15,7 +15,7 @@ impl RaftOptions {
             election_timeout: 300,
             heartbeat_timeout: 30,
             tick: 2,
-            id:1,
+            id: 1,
         }
     }
 }

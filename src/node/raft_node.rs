@@ -1,3 +1,4 @@
+#[allow(unused_imports, deprecated)]
 use orchid_proto::proto::raft_pb::raft_pb_server::RaftPb;
 use orchid_proto::proto::raft_pb::{
     raft_pb_client::RaftPbClient, raft_pb_server::RaftPbServer, VoteRequest, VoteResponse,
@@ -8,7 +9,14 @@ use rand::prelude::*;
 use std::collections::HashMap;
 use tonic::{transport::Endpoint, transport::Server, Request, Response, Status};
 
+use crate::log::logger;
+use log::info;
+
 use time::prelude::*;
+
+use std::sync::Once;
+
+static START: Once = Once::new();
 
 #[derive(PartialEq, Eq, Debug)]
 pub enum RaftState {
@@ -28,7 +36,7 @@ type NodeID = u64;
 // e.g. (2, 3) represents that  vote for node 3 at term 2
 type VoteData = (u64, Option<NodeID>);
 
-#[derive(Default)]
+//#[derive(Default)]
 pub struct Raft {
     ///number of ticks since it reached last electionTimeout when it is leader
     ///or candidate.
@@ -49,14 +57,52 @@ pub struct Raft {
     state: RaftState,
     ///id to self
     id: NodeID,
+
+    heartbeat_interval: Box<tokio::time::Interval>,
+    election_interval: Box<tokio::time::Interval>,
 }
 
 impl Raft {
     /// create new raft instance
-    fn new() -> Self {
-        Raft::default()
+    fn new(option: &RaftOptions) -> Self {
+        Raft {
+            election_elapsed: 0,
+            election_timeout: option.election_timeout,
+            election_random_timeout: 0,
+            heartbeat_elapsed: 0,
+            heartbeat_timeout: option.heartbeat_timeout,
+            heartbeat_random_timeout: 0,
+            vote_elapsed: 0,
+            vote_timeout: 0,
+            vote: (0, None),
+            term: 0,
+            state: RaftState::StateFollower,
+            id: option.id,
+            heartbeat_interval: Box::new(tokio::time::interval(
+                tokio::time::Duration::from_millis(100),
+            )),
+            election_interval: Box::new(tokio::time::interval(tokio::time::Duration::from_millis(
+                100,
+            ))),
+        }
     }
 
+    const fn state_str(&self) -> &str {
+        const FOLLOWER_STRING: &str = "Follower";
+        const CANDIDATE_STRING: &str = "Candidate";
+        const LEADER_STRING: &str = "Leader";
+        const UNKNOWN_STRING: &str = "Unknown state";
+        match self.state {
+            RaftState::StateFollower => FOLLOWER_STRING,
+            RaftState::StateCandidate => CANDIDATE_STRING,
+            RaftState::StateLeader => LEADER_STRING,
+
+        }
+    }
+    ///print basic info , for debug
+    fn basic_info(&self) -> String {
+        format!("[id:{}, state:{}]", self.id, self.state_str())
+    }
     ///return  raft node is leader or not
     fn is_leader(&self) -> bool {
         return self.state == RaftState::StateLeader;
@@ -86,12 +132,25 @@ impl Raft {
         let mut r = StdRng::seed_from_u64(time::Time::now().nanosecond() as u64);
         self.election_random_timeout =
             self.election_timeout + r.gen_range(0, self.election_timeout);
+        self.election_interval = Box::new(tokio::time::interval(
+            tokio::time::Duration::from_millis(self.election_random_timeout),
+        ));
+        info!(
+            "{} reset election_timeout to {}",
+            self.basic_info(),
+            self.election_random_timeout
+        );
     }
 
     fn reset_heartbeat_timeout(&mut self) {
         let mut r = StdRng::seed_from_u64(time::Time::now().nanosecond() as u64);
         self.heartbeat_random_timeout =
             self.heartbeat_timeout + r.gen_range(0, self.heartbeat_timeout);
+        info!(
+            "{} reset heartbeat_timeout to {}",
+            self.basic_info(),
+            self.heartbeat_random_timeout
+        );
     }
 
     fn set_state(&mut self, state: RaftState) {
@@ -101,7 +160,8 @@ impl Raft {
 
 #[test]
 fn test_create_raft() {
-    let rf = Raft::new();
+    let option = RaftOptions::new();
+    let rf = Raft::new(&option);
     assert_eq!(rf.state, RaftState::StateFollower);
 }
 
@@ -140,20 +200,25 @@ macro_rules! aw {
     };
 }
 
-#[test]
-fn test_start_raft() {
+#[tokio::test]
+async fn test_start_raft() {
+    START.call_once(|| {
+    // run initialization here
+    logger::setup_logging();
+    });
     let raft_option = RaftOptions::new();
-    let mut raft = Raft::new();
-    raft.heartbeat_timeout = raft_option.heartbeat_timeout;
-    raft.election_timeout = raft_option.election_timeout;
+    let mut raft = Raft::new(&raft_option);
+
     raft.reset_election_timeout();
     raft.reset_heartbeat_timeout();
     raft.set_state(RaftState::StateFollower);
 }
 
+
+
 #[test]
 fn test_gen_random_num() {
-    for i in 1..5 {
+    for _i in 1..5 {
         let mut r = StdRng::seed_from_u64(time::Time::now().nanosecond() as u64);
         let x = r.gen_range(0, 300);
         println!("{}", x);
@@ -178,25 +243,19 @@ fn test_create_server() {
 #[test]
 fn test_create_client() {}
 
-
-
 #[tokio::test]
 async fn test_tokio_timer() {
     let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(2));
-    for _i in 1..10{
+    for _i in 1..10 {
         interval.tick().await;
-        println!("hello {}", _i);
+        println!("hello {},{}", _i, time::Time::now().second());
     }
 }
 
 #[tokio::test]
-async fn test_raft_election_timer(){
-
+async fn test_raft_election_timer() {
     let raft_option = RaftOptions::new();
-    let mut raft = Raft::new();
-    raft.heartbeat_timeout = raft_option.heartbeat_timeout;
-    raft.election_timeout = raft_option.election_timeout;
-    raft.id = raft_option.id;
+    let mut raft = Raft::new(&raft_option);
     raft.reset_election_timeout();
     raft.reset_heartbeat_timeout();
     raft.set_state(RaftState::StateFollower);
@@ -211,7 +270,4 @@ async fn test_raft_election_timer(){
     //
     //     }
     // }).await;
-
-
-
 }
