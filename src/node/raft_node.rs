@@ -10,13 +10,14 @@ use std::collections::HashMap;
 use tonic::{transport::Endpoint, transport::Server, Request, Response, Status};
 
 use crate::log::logger;
-use log::{info,warn, debug};
+use log::{info,warn};
 
-use time::prelude::*;
 
 use std::sync::Once;
 
 use std::sync::mpsc::channel;
+use crate::log::logger::setup_logging;
+
 
 static START: Once = Once::new();
 
@@ -59,9 +60,9 @@ pub struct Raft {
     state: RaftState,
     ///id to self
     id: NodeID,
-    msg_sender: sync::Sender<MessageType>,
-    //heartbeat_interval: Box<tokio::time::Interval>,
-    //election_interval: Box<tokio::time::Interval>,
+    msg_sender: std::sync::mpsc::Sender<MessageType>,
+    cmd_sender: std::sync::mpsc::Sender<CommandType>,
+
 }
 
 impl Raft {
@@ -80,13 +81,8 @@ impl Raft {
             term: 0,
             state: RaftState::StateFollower,
             id: option.id,
-            // heartbeat_interval: Box::new(tokio::time::interval(
-            //     tokio::time::Duration::from_millis(100),
-            // )),
-            // election_interval: Box::new(tokio::time::interval(tokio::time::Duration::from_millis(
-            //     100,
-            // ))),
-            msg_sender: (),
+            msg_sender: channel::<MessageType>().0,
+            cmd_sender: channel::<CommandType>().0,
         }
     }
 
@@ -104,7 +100,7 @@ impl Raft {
     }
     ///print basic info , for debug
     fn basic_info(&self) -> String {
-        format!("[id:{}, state:{}]", self.id, self.state_str())
+        format!("[id:{}, state:{}, term:{}]", self.id, self.state_str(), self.term)
     }
     ///return  raft node is leader or not
     fn is_leader(&self) -> bool {
@@ -112,11 +108,17 @@ impl Raft {
     }
     /// become follower
     fn become_follower(&mut self) {
-        self.state = RaftState::StateFollower
+        self.state = RaftState::StateFollower;
+        self.election_elapsed =0;
+        self.reset_election_timeout();
     }
     /// become candidate
     fn become_candidate(&mut self) {
-        self.state = RaftState::StateCandidate
+        self.state = RaftState::StateCandidate;
+        self.term +=1;
+        self.vote=(self.term,self.id.into());
+       // self.msg_sender.send(MessageType::MsgVote);
+        info!("{} become candidate", self.basic_info());
     }
     /// become leader
     fn become_leader(&mut self) {
@@ -124,20 +126,18 @@ impl Raft {
     }
     ///past election timeout
     fn past_election_timeout(&self) -> bool {
-        self.election_elapsed >= self.election_timeout
+        self.election_elapsed >= self.election_random_timeout
     }
     ///past heartbeat timeout
     fn past_heartbeat_timeout(&self) -> bool {
         self.heartbeat_elapsed >= self.heartbeat_timeout
     }
 
+
     fn reset_election_timeout(&mut self) {
         let mut r = StdRng::seed_from_u64(time::Time::now().nanosecond() as u64);
         self.election_random_timeout =
             self.election_timeout + r.gen_range(0, self.election_timeout);
-        // self.election_interval = Box::new(tokio::time::interval(
-        //     tokio::time::Duration::from_millis(self.election_random_timeout),
-        // ));
         info!(
             "{} reset election_timeout to {}",
             self.basic_info(),
@@ -164,18 +164,28 @@ impl Raft {
         if self.state !=RaftState::StateFollower {
             return;
         }
-        warn!("{} is performing step_follower", self.basic_info());
+        info!("{} is performing step_follower", self.basic_info());
         self.election_elapsed +=1;
         if self.past_election_timeout(){
             self.election_elapsed = 0;
+            self.reset_election_timeout();
             self.become_candidate();
-            self.msg_sender.send(MessageType::MSG_Vote);
+           // self.msg_sender.send(MessageType::MsgVote);
         }
     }
-    fn step_candidate(&self){
+    fn step_candidate(&mut self){
         if self.state !=RaftState::StateCandidate {
             return;
         }
+        self.election_elapsed +=1;
+        if self.past_election_timeout(){
+            self.election_elapsed=0;
+            self.reset_election_timeout();
+            self.term+=1;
+            self.vote=(self.term, self.id.into());
+           // self.msg_sender.send(MessageType::MsgVote);
+        }
+
 
     }
     fn step_leader(&self){
@@ -231,7 +241,7 @@ macro_rules! aw {
 async fn test_start_raft() {
     START.call_once(|| {
     // run initialization here
-    logger::setup_logging();
+    logger::setup_logging().unwrap();
     });
     let raft_option = RaftOptions::new();
     let mut raft = Raft::new(&raft_option);
@@ -280,22 +290,38 @@ async fn test_tokio_timer() {
 }
 
 pub enum MessageType{
-    MSG_Vote,
-    MSG_HeartBeat,
+    MsgVote,
+    MsgHeartBeat,
 }
 
+pub const fn message_type_str(msg_type:MessageType)->&'static str{
+    const MSG_VOTE_STR:&str ="MsgVote";
+    const MSG_HEART_BEAT:&str ="MsgHeartBeat";
+    match msg_type {
+        MessageType::MsgVote=> MSG_VOTE_STR,
+        MessageType::MsgHeartBeat=> MSG_HEART_BEAT,
+    }
+}
 
+pub enum CommandType{
+    CmdExit,
+}
+
+/*
 #[tokio::test]
 async fn test_raft_election_timer() {
+    setup_logging().unwrap();
     let raft_option = RaftOptions::new();
     let mut raft = Raft::new(&raft_option);
     raft.reset_election_timeout();
     raft.reset_heartbeat_timeout();
     raft.set_state(RaftState::StateFollower);
-    let (sender, receiver) = channel::<MessageType>();
-    raft.msg_sender = sender;
-    tokio::spawn(async move{
-        let mut interval = tokio::time::interval(tokio::time::Duration::from_millis(500));
+    let (msg_sender, msg_receiver) = channel::<MessageType>();
+    let (cmd_send, cmd_receiver)=channel::<CommandType>();
+    raft.msg_sender = msg_sender;
+    raft.cmd_sender = cmd_send;
+    let timer_task=tokio::spawn( async move{
+        let mut interval = tokio::time::interval(tokio::time::Duration::from_millis(2));
         loop{
             interval.tick().await;
             match raft.state{
@@ -306,7 +332,43 @@ async fn test_raft_election_timer() {
         }
     });
 
-    loop{
+    let msg_task=tokio::spawn(async move{
+        let mut interval = tokio::time::interval(tokio::time::Duration::from_millis(2));
 
-    }
+        loop{
+            //let msg_type=msg_receiver.recv().unwrap();
+           // info!("receive message , which type is {}", message_type_str(msg_type));
+            interval.tick().await;
+            info!("receive message , which type is {}",1);
+        }
+    });
+    tokio::join!(timer_task,msg_task);
+
+   // let _cmd = cmd_receiver.recv().unwrap();
 }
+
+
+#[tokio::test]
+async fn test_spawn_two_task(){
+    let t1=tokio::spawn(async {
+        //let mut interval = tokio::time::interval(tokio::time::Duration::from_millis(1000));
+
+        loop{
+          //  interval.tick().await;
+            println!("task 1 is running*****************");
+        }
+    });
+    let t2=tokio::spawn(async {
+        //let mut interval = tokio::time::interval(tokio::time::Duration::from_millis(1000));
+
+        loop{
+         //   interval.tick().await;
+            println!("task 2 is running-----------------");
+        }
+    });
+    tokio::time::delay_for(std::time::Duration::from_secs(10)).await;
+    println!("now is join..........");
+    tokio::join!(t1,t2);
+}
+
+ */
