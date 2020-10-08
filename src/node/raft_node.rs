@@ -303,6 +303,7 @@ pub const fn message_type_str(msg_type:MessageType)->&'static str{
     }
 }
 
+#[derive(Debug)]
 pub enum CommandType{
     CmdExit,
 }
@@ -347,28 +348,30 @@ async fn test_raft_election_timer() {
    // let _cmd = cmd_receiver.recv().unwrap();
 }
 
+*/
 
+/*
+use tokio::sync::mpsc;
 #[tokio::test]
 async fn test_spawn_two_task(){
-    let t1=tokio::spawn(async {
-        //let mut interval = tokio::time::interval(tokio::time::Duration::from_millis(1000));
+    let  (mut sender,mut  receiver) =tokio::sync::mpsc::channel::<CommandType>(4);
+    let t1=tokio::spawn(async move{
+       // let mut interval = tokio::time::interval(tokio::time::Duration::from_millis(200));
 
         loop{
-          //  interval.tick().await;
+       //     interval.tick().await;
+            sender.send(CommandType::CmdExit).await;
             println!("task 1 is running*****************");
         }
     });
-    let t2=tokio::spawn(async {
-        //let mut interval = tokio::time::interval(tokio::time::Duration::from_millis(1000));
-
-        loop{
-         //   interval.tick().await;
-            println!("task 2 is running-----------------");
+    let t2=tokio::spawn(async move {
+         loop{
+                let cmd = receiver.recv().await.unwrap();
+            println!("receive command: {:?}",cmd);
         }
     });
-    tokio::time::delay_for(std::time::Duration::from_secs(10)).await;
+    //tokio::time::delay_for(std::time::Duration::from_secs(10)).await;
     println!("now is join..........");
     tokio::join!(t1,t2);
 }
-
- */
+*/
